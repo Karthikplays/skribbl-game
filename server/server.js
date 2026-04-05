@@ -5,15 +5,30 @@ const cors = require('cors');
 const { handleConnection } = require('./rooms');
 
 const app = express();
-app.use(cors());
+
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:4173',
+  process.env.CLIENT_URL,
+].filter(Boolean);
+
+app.use(cors({
+  origin: allowedOrigins,
+  methods: ['GET', 'POST'],
+  credentials: true,
+}));
+
 app.use(express.json());
 
 const server = http.createServer(app);
+
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
-    methods: ['GET', 'POST']
-  }
+    origin: allowedOrigins,
+    methods: ['GET', 'POST'],
+    credentials: true,
+  },
+  transports: ['websocket', 'polling'],
 });
 
 io.on('connection', (socket) => {
@@ -23,9 +38,19 @@ io.on('connection', (socket) => {
     console.log('Disconnected:', socket.id);
   });
 });
+
 app.get('/health', (_, res) => res.json({ ok: true }));
+
+// Keep Render free tier awake
+const SELF_URL = process.env.RENDER_EXTERNAL_URL;
+if (SELF_URL) {
+  setInterval(() => {
+    fetch(`${SELF_URL}/health`).catch(() => {});
+  }, 14 * 60 * 1000);
+}
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Server on port ${PORT}`);
+  console.log(`Allowed origins:`, allowedOrigins);
 });
