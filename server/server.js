@@ -42,11 +42,11 @@ io.on('connection', (socket) => {
   });
 });
 
-app.get('*', (req, res) => {
+app.get('/health', (_, res) => res.json({ ok: true }));
+
+app.get('/*', (req, res) => {
   res.sendFile(path.join(__dirname, '../client/dist/index.html'));
 });
-
-app.get('/health', (_, res) => res.json({ ok: true }));
 
 // Keep Render free tier awake
 const SELF_URL = process.env.RENDER_EXTERNAL_URL;
