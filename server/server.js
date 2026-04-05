@@ -3,10 +3,9 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const path = require('path');
+const compression = require('compression');
 const { handleConnection } = require('./rooms');
-
 const app = express();
-
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:4173',
@@ -20,9 +19,13 @@ app.use(cors({
 }));
 
 app.use(express.json());
+app.use(compression()); // gzip compression
+const clientPath = path.join(__dirname, '../client/dist');
 
-app.use(express.static(path.join(__dirname, '../client/dist')));
-
+app.use(express.static(clientPath, {
+  maxAge: '1d', // cache static assets
+  index: false,
+}));
 const server = http.createServer(app);
 
 const io = new Server(server, {
@@ -35,29 +38,42 @@ const io = new Server(server, {
 });
 
 io.on('connection', (socket) => {
-  console.log('Connected:', socket.id);
-  handleConnection(socket, io);
+  console.log('✅ Connected:', socket.id);
+
+  try {
+    handleConnection(socket, io);
+  } catch (err) {
+    console.error('Socket error:', err);
+  }
+
   socket.on('disconnect', () => {
-    console.log('Disconnected:', socket.id);
+    console.log('❌ Disconnected:', socket.id);
   });
 });
 
-app.get('/health', (_, res) => res.json({ ok: true }));
-
-app.get('/*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+app.get('/health', (_, res) => {
+  res.status(200).json({ ok: true });
 });
 
-// Keep Render free tier awake
+app.get('*', (req, res) => {
+  res.sendFile(path.join(clientPath, 'index.html'));
+});
+
+app.use((err, req, res, next) => {
+  console.error('Server Error:', err.stack);
+  res.status(500).json({ message: 'Internal Server Error' });
+});
+
 const SELF_URL = process.env.RENDER_EXTERNAL_URL;
+
 if (SELF_URL) {
   setInterval(() => {
     fetch(`${SELF_URL}/health`).catch(() => {});
   }, 14 * 60 * 1000);
 }
-
 const PORT = process.env.PORT || 3001;
+
 server.listen(PORT, () => {
-  console.log(`Server on port ${PORT}`);
-  console.log(`Allowed origins:`, allowedOrigins);
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🌍 Allowed origins:`, allowedOrigins);
 });
