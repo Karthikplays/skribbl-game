@@ -4,8 +4,12 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const path = require('path');
 const compression = require('compression');
+
 const { handleConnection } = require('./rooms');
+
 const app = express();
+
+/* ================= CORS ================= */
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:4173',
@@ -18,14 +22,19 @@ app.use(cors({
   credentials: true,
 }));
 
+/* ================= MIDDLEWARE ================= */
 app.use(express.json());
-app.use(compression()); // gzip compression
+app.use(compression());
+
+/* ================= STATIC ================= */
 const clientPath = path.join(__dirname, '../client/dist');
 
 app.use(express.static(clientPath, {
-  maxAge: '1d', // cache static assets
+  maxAge: '1d',
   index: false,
 }));
+
+/* ================= SERVER ================= */
 const server = http.createServer(app);
 
 const io = new Server(server, {
@@ -37,6 +46,7 @@ const io = new Server(server, {
   transports: ['websocket', 'polling'],
 });
 
+/* ================= SOCKET ================= */
 io.on('connection', (socket) => {
   console.log('✅ Connected:', socket.id);
 
@@ -51,11 +61,13 @@ io.on('connection', (socket) => {
   });
 });
 
+/* ================= ROUTES ================= */
 app.get('/health', (_, res) => {
   res.status(200).json({ ok: true });
 });
 
-app.get('*', (req, res) => {
+/* ✅ SPA FALLBACK (FINAL FIX) */
+app.use((req, res) => {
   res.sendFile(path.join(clientPath, 'index.html'), (err) => {
     if (err) {
       console.error('Error serving index.html:', err);
@@ -64,11 +76,13 @@ app.get('*', (req, res) => {
   });
 });
 
+/* ================= ERROR HANDLER ================= */
 app.use((err, req, res, next) => {
   console.error('Server Error:', err.stack);
   res.status(500).json({ message: 'Internal Server Error' });
 });
 
+/* ================= KEEP ALIVE ================= */
 const SELF_URL = process.env.RENDER_EXTERNAL_URL;
 
 if (SELF_URL) {
@@ -76,6 +90,8 @@ if (SELF_URL) {
     fetch(`${SELF_URL}/health`).catch(() => {});
   }, 14 * 60 * 1000);
 }
+
+/* ================= START ================= */
 const PORT = process.env.PORT || 3001;
 
 server.listen(PORT, () => {
