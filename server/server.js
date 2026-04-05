@@ -56,7 +56,12 @@ app.get('/health', (_, res) => {
 });
 
 app.get('*', (req, res) => {
-  res.sendFile(path.join(clientPath, 'index.html'));
+  res.sendFile(path.join(clientPath, 'index.html'), (err) => {
+    if (err) {
+      console.error('Error serving index.html:', err);
+      res.status(500).send('Internal Server Error');
+    }
+  });
 });
 
 app.use((err, req, res, next) => {
